@@ -1,0 +1,201 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "System user representing HR staff, managers, HODs, or admins.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 256 },
+        "roles": { "type": "string", "maxLength": 512 },
+        "code": { "type": "string", "maxLength": 64 },
+        "level": { "type": "string", "enum": ["Staff", "Manager", "HOD", "Admin"] },
+        "title": { "type": "string", "maxLength": 256 }
+      },
+      "required": ["userId", "name", "email", "roles", "code", "level", "title"]
+    },
+    "Employee": {
+      "title": "Employee",
+      "description": "Synthetic employee record mirroring HRIS Ramco data.",
+      "type": "object",
+      "properties": {
+        "empId": { "type": "string", "maxLength": 64 },
+        "name": { "type": "string", "maxLength": 128 },
+        "position": { "type": "string", "maxLength": 128 },
+        "dept": { "type": "string", "maxLength": 128 },
+        "grade": { "type": "string", "maxLength": 64 },
+        "manager": { "type": "string", "maxLength": 128 },
+        "joinDate": { "type": "string", "maxLength": 32 },
+        "category": { "type": "string", "enum": ["Union", "Non-union"] },
+        "status": { "type": "string", "enum": ["Active", "On notice", "Resigned", "Probation"] },
+        "email": { "type": "string", "maxLength": 256 }
+      },
+      "required": ["empId", "name", "position", "dept", "grade", "manager", "joinDate", "category", "status", "email"]
+    },
+    "Case": {
+      "title": "Case",
+      "description": "An HR lifecycle event case comprising sequenced tasks and human decisions.",
+      "type": "object",
+      "properties": {
+        "caseId": { "type": "string", "maxLength": 64 },
+        "type": { "type": "string", "maxLength": 64 },
+        "empId": { "type": "string", "maxLength": 64 },
+        "title": { "type": "string", "maxLength": 256 },
+        "status": { "type": "string", "enum": ["Open", "In progress", "Awaiting verification", "Verified", "Closed", "Escalated"] },
+        "stage": { "type": "string", "maxLength": 256 },
+        "owner": { "type": "string", "maxLength": 128 },
+        "priority": { "type": "string", "enum": ["Normal", "High", "Urgent"] },
+        "source": { "type": "string", "maxLength": 256 },
+        "opened": { "type": "string", "maxLength": 32 },
+        "keyDate": { "type": "string", "maxLength": 32 },
+        "blocker": { "type": "string", "maxLength": 512 },
+        "validation": { "type": "string", "maxLength": 512 },
+        "evidence": { "type": "string", "maxLength": 128 },
+        "exception": { "type": "string", "maxLength": 512 },
+        "payload": { "type": "string", "maxLength": 4096 },
+        "outcome": { "type": "string", "maxLength": 512 }
+      },
+      "required": ["caseId", "type", "title", "status", "stage", "owner", "priority", "source", "opened"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "An individual workflow action or decision within a case.",
+      "type": "object",
+      "properties": {
+        "taskId": { "type": "string", "maxLength": 64 },
+        "caseId": { "type": "string", "maxLength": 64 },
+        "seq": { "type": "number" },
+        "title": { "type": "string", "maxLength": 256 },
+        "ownerRole": { "type": "string", "maxLength": 64 },
+        "kind": { "type": "string", "enum": ["human", "auto", "decision"] },
+        "deps": { "type": "string", "maxLength": 512 },
+        "status": { "type": "string", "enum": ["Not Started", "Ready", "Waiting", "Completed", "Escalated", "Verified"] },
+        "due": { "type": "string", "maxLength": 32 },
+        "note": { "type": "string", "maxLength": 1024 },
+        "done": { "type": "string", "maxLength": 32 },
+        "options": { "type": "string", "maxLength": 512 },
+        "action": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["taskId", "caseId", "seq", "title", "ownerRole", "kind", "status"]
+    },
+    "Evidence": {
+      "title": "Evidence",
+      "description": "Logged documentary evidence proving task completion.",
+      "type": "object",
+      "properties": {
+        "evId": { "type": "string", "maxLength": 64 },
+        "caseId": { "type": "string", "maxLength": 64 },
+        "taskId": { "type": "string", "maxLength": 64 },
+        "label": { "type": "string", "maxLength": 256 },
+        "source": { "type": "string", "maxLength": 128 },
+        "by": { "type": "string", "maxLength": 128 },
+        "at": { "type": "string", "maxLength": 32 },
+        "ref": { "type": "string", "maxLength": 512 }
+      },
+      "required": ["evId", "caseId", "label", "source", "by", "at"]
+    },
+    "Audit": {
+      "title": "Audit",
+      "description": "Append-only immutable audit trail record.",
+      "type": "object",
+      "properties": {
+        "auditId": { "type": "string", "maxLength": 64 },
+        "at": { "type": "string", "maxLength": 32 },
+        "user": { "type": "string", "maxLength": 128 },
+        "caseId": { "type": "string", "maxLength": 64 },
+        "action": { "type": "string", "maxLength": 256 },
+        "detail": { "type": "string", "maxLength": 1024 },
+        "role": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["auditId", "at", "user", "action"]
+    },
+    "Draft": {
+      "title": "Draft",
+      "description": "System-prepared reversible Gmail drafts awaiting human send.",
+      "type": "object",
+      "properties": {
+        "draftId": { "type": "string", "maxLength": 64 },
+        "caseId": { "type": "string", "maxLength": 64 },
+        "empId": { "type": "string", "maxLength": 64 },
+        "at": { "type": "string", "maxLength": 32 },
+        "by": { "type": "string", "maxLength": 128 },
+        "to": { "type": "string", "maxLength": 256 },
+        "cc": { "type": "string", "maxLength": 256 },
+        "subject": { "type": "string", "maxLength": 256 },
+        "body": { "type": "string", "maxLength": 4096 },
+        "attach": { "type": "string", "maxLength": 512 },
+        "status": { "type": "string", "enum": ["Draft", "Sent by user", "Deleted"] },
+        "role": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["draftId", "subject", "status"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "Cross-role handover alerts and urgent case notifications.",
+      "type": "object",
+      "properties": {
+        "notifId": { "type": "string", "maxLength": 64 },
+        "at": { "type": "string", "maxLength": 32 },
+        "toRole": { "type": "string", "maxLength": 64 },
+        "toUser": { "type": "string", "maxLength": 64 },
+        "caseId": { "type": "string", "maxLength": 64 },
+        "message": { "type": "string", "maxLength": 512 },
+        "from": { "type": "string", "maxLength": 128 },
+        "read": { "type": "string", "enum": ["yes", "no"] }
+      },
+      "required": ["notifId", "at", "toRole", "toUser", "message", "from", "read"]
+    },
+    "System": {
+      "title": "System",
+      "description": "System configuration state such as Emergency Stop and connector statuses.",
+      "type": "object",
+      "properties": {
+        "key": { "type": "string", "maxLength": 64 },
+        "value": { "type": "string", "maxLength": 1024 },
+        "by": { "type": "string", "maxLength": 128 },
+        "at": { "type": "string", "maxLength": 32 },
+        "note": { "type": "string", "maxLength": 512 }
+      },
+      "required": ["key", "value"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Collection of all authorized users and their assigned HR units."
+    },
+    "/employees/{empId}": {
+      "schema": { "$ref": "#/entities/Employee" },
+      "description": "Mirrored employees data."
+    },
+    "/cases/{caseId}": {
+      "schema": { "$ref": "#/entities/Case" },
+      "description": "HR cases lifecycle tracking."
+    },
+    "/cases/{caseId}/tasks/{taskId}": {
+      "schema": { "$ref": "#/entities/Task" },
+      "description": "Tasks associated with a case."
+    },
+    "/cases/{caseId}/evidence/{evId}": {
+      "schema": { "$ref": "#/entities/Evidence" },
+      "description": "Evidentiary records filed for a case."
+    },
+    "/audit/{auditId}": {
+      "schema": { "$ref": "#/entities/Audit" },
+      "description": "System-wide immutable audit trail."
+    },
+    "/drafts/{draftId}": {
+      "schema": { "$ref": "#/entities/Draft" },
+      "description": "Pending email drafts."
+    },
+    "/notifications/{notifId}": {
+      "schema": { "$ref": "#/entities/Notification" },
+      "description": "Inbox notifications and handover alerts."
+    },
+    "/system/{key}": {
+      "schema": { "$ref": "#/entities/System" },
+      "description": "Global operational state."
+    }
+  }
+}

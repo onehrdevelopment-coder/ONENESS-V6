@@ -1,0 +1,93 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net: Default-deny all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == "aliff_akhmar@mediaprima.com.my" ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if isSignedIn() && isValidId(userId);
+      allow create, update: if isSignedIn() && isValidId(userId) && (isAdmin() || request.auth.uid == userId);
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
+    // Employees collection (Ramco mirror)
+    match /employees/{empId} {
+      allow read: if isSignedIn() && isValidId(empId);
+      allow write: if isAdmin() && isValidId(empId);
+    }
+
+    // Cases collection
+    match /cases/{caseId} {
+      allow read: if isSignedIn() && isValidId(caseId);
+      allow create, update: if isSignedIn() && isValidId(caseId);
+      allow delete: if isAdmin() && isValidId(caseId);
+
+      // Tasks subcollection
+      match /tasks/{taskId} {
+        allow read: if isSignedIn() && isValidId(taskId);
+        allow create, update: if isSignedIn() && isValidId(taskId);
+        allow delete: if isAdmin() && isValidId(taskId);
+      }
+
+      // Evidence subcollection
+      match /evidence/{evId} {
+        allow read: if isSignedIn() && isValidId(evId);
+        allow create, update: if isSignedIn() && isValidId(evId);
+        allow delete: if isAdmin() && isValidId(evId);
+      }
+
+      // Files subcollection
+      match /files/{fileId} {
+        allow read: if isSignedIn() && isValidId(fileId);
+        allow create, update: if isSignedIn() && isValidId(fileId);
+        allow delete: if isAdmin() && isValidId(fileId);
+      }
+    }
+
+    // Audit collection (append-only log)
+    match /audit/{auditId} {
+      allow read: if isSignedIn() && isValidId(auditId);
+      allow create: if isSignedIn() && isValidId(auditId);
+      allow update, delete: if false; // Immutable audit log
+    }
+
+    // Drafts collection
+    match /drafts/{draftId} {
+      allow read: if isSignedIn() && isValidId(draftId);
+      allow create, update, delete: if isSignedIn() && isValidId(draftId);
+    }
+
+    // Notifications collection
+    match /notifications/{notifId} {
+      allow read: if isSignedIn() && isValidId(notifId);
+      allow create, update: if isSignedIn() && isValidId(notifId);
+      allow delete: if isAdmin() && isValidId(notifId);
+    }
+
+    // System collection
+    match /system/{key} {
+      allow read: if isSignedIn() && isValidId(key);
+      allow write: if isSignedIn() && isValidId(key);
+    }
+  }
+}

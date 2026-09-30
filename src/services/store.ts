@@ -18,6 +18,14 @@ import {
   ModuleType,
   MenuStyle,
 } from '../types';
+import {
+  syncCaseToFirestore,
+  syncTaskToFirestore,
+  syncEvidenceToFirestore,
+  syncAuditToFirestore,
+  syncDraftToFirestore,
+  syncSystemToFirestore,
+} from './firebase';
 
 export const ROLES: Record<string, { code: string; label: string; unit: string }> = {
   'HR Ops': { code: 'HR A', label: 'HR Operations & Movement', unit: 'HR Operations' },
