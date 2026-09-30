@@ -1,14 +1,24 @@
-import React, { useState } from 'react';
-import { Search } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Search, Upload } from 'lucide-react';
 import { store } from '../services/store';
 import { Employee } from '../types';
 
 interface PeopleViewProps {
   onSelectPerson: (empId: string) => void;
+  onImported: (message: string) => void;
 }
 
-export const PeopleView: React.FC<PeopleViewProps> = ({ onSelectPerson }) => {
+export const PeopleView: React.FC<PeopleViewProps> = ({ onSelectPerson, onImported }) => {
+  const csvRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
+
+  const handleCsv = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const r = store.importEmployeesCsv(await file.text());
+    onImported(r.ok ? `Imported ${r.count} employee(s). Saved to Drive.` : `Import failed: ${r.error}`);
+  };
   const [filter, setFilter] = useState<'All' | 'Active' | 'On notice' | 'Union' | 'Probation' | 'Has open case'>('All');
 
   const employees = store.employees;
@@ -55,9 +65,28 @@ export const PeopleView: React.FC<PeopleViewProps> = ({ onSelectPerson }) => {
       <div className="text-xs font-semibold tracking-[0.2em] text-[#86868b] uppercase mb-1.5">
         PEOPLE
       </div>
-      <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-[#1d1d1f] mb-6">
-        Employees
-      </h1>
+      <div className="flex flex-wrap items-end justify-between gap-3 mb-6">
+        <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-[#1d1d1f]">
+          Employees
+        </h1>
+        {store.isLive() && (
+          <>
+            <input ref={csvRef} type="file" accept=".csv" className="hidden" onChange={handleCsv} />
+            <button onClick={() => csvRef.current?.click()} className="btn-ghost">
+              <Upload className="w-4 h-4 mr-1" />
+              Import employee CSV
+            </button>
+          </>
+        )}
+      </div>
+
+      {store.isLive() && employees.length === 0 && (
+        <div className="p-5 mb-6 bg-white border border-[#e8e8ed] rounded-2xl text-xs text-[#6e6e73] leading-relaxed">
+          No employees yet. Sense needs an employee master to match documents to people. Export from Ramco as CSV with
+          columns <span className="font-mono">empId, name, email</span> (required) and optionally{' '}
+          <span className="font-mono">position, dept, grade, manager, joinDate, category, status</span>.
+        </div>
+      )}
 
       {/* Search & Tabs */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-6">

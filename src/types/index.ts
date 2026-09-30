@@ -204,6 +204,7 @@ export interface DraftRecord {
   attach: string;
   status: 'Draft' | 'Sent by user' | 'Deleted';
   role: string;
+  gmailUrl?: string; // live mode: link to the real draft in Gmail
 }
 
 export interface NotificationRecord {
@@ -249,7 +250,7 @@ export interface SenseResult {
   blocked?: boolean;
   nothingCreated?: boolean;
   suggested?: any;
-  source?: { name: string; text: string };
+  source?: { name: string; text: string; url?: string; driveFileId?: string };
   route?: SenseRoute;
 }
 

@@ -25,7 +25,7 @@ export const GmailDraftModal: React.FC<GmailDraftModalProps> = ({
   React.useEffect(() => {
     if (draft) {
       setTo(draft.to);
-      setCc(draft.cc || 'hr.ops@example.com');
+      setCc(draft.cc || (store.isLive() ? '' : 'hr.ops@example.com'));
       setSubject(draft.subject);
       setBody(draft.body);
       setIsEditing(false);
@@ -101,7 +101,18 @@ export const GmailDraftModal: React.FC<GmailDraftModalProps> = ({
             </h3>
             <p className="text-xs text-[#86868b] mt-0.5">
               Gmail draft · {isSent ? 'Sent by user' : 'not sent'} · {draft.at}
+              {draft.gmailUrl && (
+                <>
+                  {' · '}
+                  <a href={draft.gmailUrl} target="_blank" rel="noreferrer" className="text-[#0071e3] font-semibold hover:underline">
+                    Open in Gmail
+                  </a>
+                </>
+              )}
             </p>
+            {store.isLive() && draft.gmailUrl && isEditing && (
+              <p className="text-[11px] text-amber-700 mt-1">Edits here update Oneness only. Edit the Gmail draft too before sending.</p>
+            )}
           </div>
         </div>
 

@@ -24,8 +24,13 @@ import { ProcessDetailView } from './views/ProcessDetailView';
 import { InboxView } from './views/InboxView';
 import { ControlRoomView } from './views/ControlRoomView';
 
-import { store } from './services/store';
+import { store, LABELS, SideEffect } from './services/store';
+import * as google from './services/google';
 import { FileRecord, DraftRecord, SenseResult, MenuStyle, User, ModuleType } from './types';
+
+export type SyncStatus = 'saved' | 'saving' | 'error' | 'reauth';
+
+const TEXT_FILE = /\.(txt|eml|csv|md)$/i;
 
 export default function App() {
   const [currentView, setCurrentView] = useState<string>('landing');
@@ -50,12 +55,130 @@ export default function App() {
 
   const dragCounter = useRef(0);
 
+  // Live (real Google) workspace
+  const [isLive, setIsLive] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('saved');
+  const [signingIn, setSigningIn] = useState(false);
+  const [signInError, setSignInError] = useState<string | null>(null);
+  const pendingSave = useRef<any>(null);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Show Toast
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => {
       setToastMessage(null);
     }, 4000);
+  };
+
+  const handleGoogleError = (e: unknown, what: string) => {
+    if (e instanceof google.GoogleAuthExpired) {
+      setSyncStatus('reauth');
+      showToast('Google session expired. Click Reconnect at the top.');
+    } else {
+      showToast(`${what} failed: ${(e as Error).message}`);
+    }
+  };
+
+  const flushSave = async () => {
+    const data = pendingSave.current;
+    if (!data) return;
+    pendingSave.current = null;
+    setSyncStatus('saving');
+    try {
+      await google.saveData(data);
+      setSyncStatus(pendingSave.current ? 'saving' : 'saved');
+    } catch (e) {
+      // Keep the newest snapshot so a reconnect can retry it.
+      pendingSave.current = pendingSave.current || data;
+      setSyncStatus(e instanceof google.GoogleAuthExpired ? 'reauth' : 'error');
+    }
+  };
+
+  // Debounced write of the whole workspace to Oneness/oneness-data.json in Drive.
+  const queueDriveSave = (data: any) => {
+    pendingSave.current = data;
+    setSyncStatus('saving');
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(flushSave, 1500);
+  };
+
+  // Real Gmail drafts and Calendar events for automatic tasks.
+  const runSideEffect = async (e: SideEffect) => {
+    if (store.isEmergencyStop()) {
+      store.audit('', 'Google action blocked', 'Emergency stop is active', 'Oneness');
+      return;
+    }
+    try {
+      if (e.kind === 'draft') {
+        const d = store.drafts.find(x => x.draftId === e.draftId);
+        if (!d) return;
+        const r = await google.createDraft({ to: d.to, cc: d.cc, subject: d.subject, body: d.body });
+        d.gmailUrl = r.url;
+        store.audit(d.caseId, 'Gmail draft created', `${d.subject} [${d.draftId}] (not sent)`, 'Oneness');
+      } else {
+        const c = store.cases.find(x => x.caseId === e.caseId);
+        const r = await google.createAllDayEvent({
+          date: e.date,
+          summary: e.summary,
+          description: `Oneness case ${e.caseId}${c ? `: ${c.title}` : ''}`,
+        });
+        store.addEvidence(e.caseId, '', `Calendar event on ${e.date}`, 'Google Calendar', r.link, 'Oneness');
+        store.audit(e.caseId, 'Calendar event created', `${e.summary} on ${e.date}`, 'Oneness');
+      }
+      refresh();
+    } catch (err) {
+      store.audit(e.kind === 'draft' ? '' : e.caseId, `Google ${e.kind} failed`, (err as Error).message, 'Oneness');
+      handleGoogleError(err, e.kind === 'draft' ? 'Gmail draft' : 'Calendar event');
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setSignInError(null);
+    setSigningIn(true);
+    try {
+      await google.requestAccess();
+      const profile = await google.getProfile();
+      google.resetSession();
+      const data = await google.loadData();
+      store.onLiveSave = queueDriveSave;
+      store.onSideEffect = runSideEffect;
+      store.startLive(profile, data);
+      setIsLive(true);
+      setSyncStatus('saved');
+      handleNavigate('home');
+      showToast(data ? `Signed in as ${profile.email}. Workspace loaded from Drive.` : `Signed in as ${profile.email}. New workspace created in Drive.`);
+    } catch (e) {
+      google.signOut();
+      setSignInError((e as Error).message);
+    } finally {
+      setSigningIn(false);
+    }
+  };
+
+  const handleReconnect = async () => {
+    try {
+      await google.requestAccess({ prompt: '', hint: store.liveEmail });
+      setSyncStatus(pendingSave.current ? 'saving' : 'saved');
+      await flushSave();
+      showToast('Reconnected to Google.');
+    } catch (e) {
+      showToast(`Reconnect failed: ${(e as Error).message}`);
+    }
+  };
+
+  const handleSignOut = async () => {
+    if (isLive) {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      await flushSave();
+      google.signOut();
+      google.resetSession();
+      store.startDemo();
+      setIsLive(false);
+      handleNavigate('landing');
+      return;
+    }
+    handleNavigate('demo');
   };
 
   // Keyboard shortcut Ctrl/Cmd+K
@@ -127,8 +250,77 @@ export default function App() {
     };
   }, []);
 
+  // Live: file goes to Drive (Oneness/Inbox) first, then text is read locally or via Drive OCR.
+  const senseBlobLive = async (blob: Blob, name: string, extraText = '') => {
+    setReadingPill(`Uploading ${name} to Drive...`);
+    const f = await google.uploadFile(blob, name, ['Inbox']);
+    let text = '';
+    if (blob.type.startsWith('text/') || TEXT_FILE.test(name)) {
+      text = await blob.text();
+    } else {
+      setReadingPill(`Reading ${name} (OCR)...`);
+      text = await google.extractText(f.id);
+    }
+    store.audit('', 'File received into Drive', `${name} -> Oneness/Inbox`);
+    return { text: [extraText, text].filter(Boolean).join('\n\n'), url: f.webViewLink || '', driveFileId: f.id };
+  };
+
+  const openSense = (text: string, name: string, extra?: { url?: string; driveFileId?: string }) => {
+    const res = store.sense({ text, name });
+    res.source = { name, text, ...extra };
+    setSenseResult(res);
+    setIsSenseModalOpen(true);
+  };
+
+  const handleLiveFile = async (file: File) => {
+    if (store.isEmergencyStop()) {
+      showToast('Emergency stop is active. Nothing is uploaded.');
+      return;
+    }
+    try {
+      const r = await senseBlobLive(file, file.name);
+      if (!r.text.trim()) showToast('No readable text found in this file.');
+      openSense(r.text, file.name, { url: r.url, driveFileId: r.driveFileId });
+    } catch (e) {
+      handleGoogleError(e, 'Reading file');
+    } finally {
+      setReadingPill(null);
+    }
+  };
+
+  const handleSenseGmail = async (messageId: string) => {
+    try {
+      setReadingPill('Reading email...');
+      const m = await google.getMessage(messageId);
+      const mailText = `From: ${m.from}\nDate: ${m.date}\nSubject: ${m.subject}\n\n${m.body}`;
+      const att = m.attachments.find(a => /pdf|word|image|text/i.test(a.mimeType));
+      if (att) {
+        const blob = await google.getAttachment(m.id, att);
+        const r = await senseBlobLive(blob, att.filename, mailText);
+        openSense(r.text, att.filename, { url: r.url, driveFileId: r.driveFileId });
+      } else {
+        openSense(mailText, `Email: ${m.subject}`, { url: `https://mail.google.com/mail/u/0/#all/${m.id}` });
+      }
+      store.audit('', 'Email sensed', `${m.subject} (${m.from})`);
+    } catch (e) {
+      handleGoogleError(e, 'Reading email');
+    } finally {
+      setReadingPill(null);
+    }
+  };
+
+  const handleSenseEvent = (ev: google.CalendarEvent) => {
+    const text = `Calendar event: ${ev.summary}\nDate: ${ev.start}\nOrganizer: ${ev.organizer}\n\n${ev.description}`;
+    store.audit('', 'Calendar event sensed', `${ev.summary} (${ev.start})`);
+    openSense(text, `Event: ${ev.summary}`, { url: ev.link });
+  };
+
   // File processing (TXT, EML, PDF)
   const handleFileProcessing = (file: File) => {
+    if (store.isLive()) {
+      handleLiveFile(file);
+      return;
+    }
     setReadingPill(`Reading ${file.name}...`);
 
     // Match scenario from samples if filename matches
@@ -188,6 +380,10 @@ export default function App() {
   };
 
   const handleResetDemo = () => {
+    if (store.isLive()) {
+      showToast('Reset is only for demo data. Your live workspace is untouched.');
+      return;
+    }
     if (confirm('Reset all demo data back to the starting state?')) {
       store.seedAll();
       refresh();
@@ -206,20 +402,27 @@ export default function App() {
       <div className="wave" />
 
       {/* Top bar (only shown when authenticated, scrolls away with page) */}
-      {currentView !== 'landing' && currentView !== 'login' && (
-        <TopBar onLogoClick={() => handleNavigate('home')} />
+      {currentView !== 'landing' && currentView !== 'demo' && (
+        <TopBar
+          onLogoClick={() => handleNavigate('home')}
+          live={isLive ? { email: store.liveEmail, status: syncStatus, onReconnect: handleReconnect } : undefined}
+        />
       )}
 
       {/* Main View Router */}
       <main className="relative z-10">
         {currentView === 'landing' && (
           <LandingView
-            onSignIn={() => handleNavigate('login')}
+            onSignIn={handleGoogleSignIn}
+            onDemo={() => handleNavigate('demo')}
+            googleConfigured={google.isConfigured()}
+            signingIn={signingIn}
+            signInError={signInError}
             onNavigateNav={v => handleNavigate(v)}
           />
         )}
 
-        {currentView === 'login' && (
+        {currentView === 'demo' && (
           <ChooseAccountView
             onSelectAccount={handleSelectAccount}
             onBack={() => handleNavigate('landing')}
@@ -265,12 +468,17 @@ export default function App() {
             onBack={() => handleNavigate('home')}
             onSenseFile={handleFileProcessing}
             onSenseText={handleSenseText}
+            live={isLive ? { onSenseGmail: handleSenseGmail, onSenseEvent: handleSenseEvent, onError: e => handleGoogleError(e, 'Google') } : undefined}
           />
         )}
 
         {currentView === 'people' && (
           <PeopleView
             onSelectPerson={empId => handleNavigate('person', empId)}
+            onImported={msg => {
+              showToast(msg);
+              refresh();
+            }}
           />
         )}
 
@@ -323,7 +531,7 @@ export default function App() {
       </main>
 
       {/* Navigation (Multi-Style, hidden by default, pops up on edge hover or menu) */}
-      {currentView !== 'landing' && currentView !== 'login' && (
+      {currentView !== 'landing' && currentView !== 'demo' && (
         <Navigation
           currentView={currentView}
           onNavigate={handleNavigate}
@@ -331,7 +539,7 @@ export default function App() {
           onOpenMenuStyle={() => setIsMenuStyleOpen(true)}
           onOpenEmergencyStop={() => setIsStopModalOpen(true)}
           onResetDemo={handleResetDemo}
-          onSignOut={() => handleNavigate('login')}
+          onSignOut={handleSignOut}
           unreadInboxCount={unreadCount}
         />
       )}
@@ -356,6 +564,17 @@ export default function App() {
           handleNavigate('case', cid);
           showToast(`Case ${cid} created.`);
           refresh();
+          // Live: file the source document under Oneness/HR/<Module>/<Employee>.
+          const driveFileId = senseResult?.source?.driveFileId;
+          const c = store.cases.find(x => x.caseId === cid);
+          if (store.isLive() && driveFileId && c) {
+            const emp = store.employees.find(e => e.empId === c.empId);
+            const folder = ['HR', LABELS[c.type] || c.type, emp ? `${emp.name} (${emp.empId})` : c.empId];
+            google
+              .moveFile(driveFileId, folder)
+              .then(() => store.audit(cid, 'Source filed in Drive', `Oneness/${folder.join('/')}`, 'Oneness'))
+              .catch(e => handleGoogleError(e, 'Filing to Drive'));
+          }
         }}
       />
 

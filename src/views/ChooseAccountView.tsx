@@ -45,13 +45,13 @@ export const ChooseAccountView: React.FC<ChooseAccountViewProps> = ({
 
         <div className="text-center mb-10">
           <div className="text-xs font-semibold tracking-[0.2em] text-[#86868b] uppercase mb-2">
-            CHOOSE ACCOUNT
+            DEMO LOGIN
           </div>
           <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-[#1d1d1f] mb-3">
-            Who is signing in?
+            Pick a demo role
           </h1>
           <p className="text-base text-[#86868b]">
-            Demo accounts. Real Google sign-in replaces this list.
+            Synthetic employees and scenarios. Nothing touches real Google Drive, Gmail or Calendar.
           </p>
         </div>
 
@@ -92,7 +92,7 @@ export const ChooseAccountView: React.FC<ChooseAccountViewProps> = ({
         </div>
 
         <div className="text-center text-xs text-[#86868b] mt-12">
-          Demo accounts. In production Google Workspace verifies who you are.
+          For real work, go back and use Continue with Google.
         </div>
       </div>
     </div>
