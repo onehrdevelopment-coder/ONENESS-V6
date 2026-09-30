@@ -1,0 +1,7 @@
+{
+  "name": "Oneness — HR Operating Intelligence",
+  "description": "An HR Operating Intelligence layer around Ramco. Senses documents, routes to owners, does routine checks and drafts, and asks only for human decisions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
