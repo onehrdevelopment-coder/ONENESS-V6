@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { TopBar } from './components/TopBar';
 import { Navigation } from './components/Navigation';
 import { EmergencyStop } from './components/EmergencyStop';
@@ -44,9 +44,9 @@ export default function App() {
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isMenuStyleOpen, setIsMenuStyleOpen] = useState(false);
 
-  // Version tick for re-rendering
-  const [tick, setTick] = useState(0);
-  const refresh = () => setTick(t => t + 1);
+  // Version tick for re-rendering (memoized to prevent cascading re-renders)
+  const [, setTick] = useState(0);
+  const refresh = useCallback(() => setTick(t => t + 1), []);
 
   const dragCounter = useRef(0);
 

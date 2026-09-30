@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Power, AlertTriangle, X } from 'lucide-react';
 import { store } from '../services/store';
 
@@ -40,23 +40,33 @@ export const EmergencyStop: React.FC<EmergencyStopProps> = ({
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
-  // Periodic watchdog check
+  // Keep a stable ref for onStatusChange callback
+  const onStatusChangeRef = useRef(onStatusChange);
   useEffect(() => {
-    const check = () => {
+    onStatusChangeRef.current = onStatusChange;
+  }, [onStatusChange]);
+
+  // Periodic watchdog check (background timer only, does not trigger synchronous state loop)
+  useEffect(() => {
+    const iv = setInterval(() => {
+      const wasEstop = store.isEmergencyStop();
       const w = store.runWatchdog();
-      if (w.worst === 'critical' && store.isEmergencyStop()) {
+      const isNowEstop = store.isEmergencyStop();
+
+      if (w.worst === 'critical' && isNowEstop) {
         const crit = w.checks.find(c => c.level === 'critical');
-        if (crit && !watchdogTrippedMessage) {
-          setWatchdogTrippedMessage(`${crit.label}: ${crit.detail}`);
+        if (crit) {
+          setWatchdogTrippedMessage(prev => prev || `${crit.label}: ${crit.detail}`);
         }
       }
-      onStatusChange();
-    };
 
-    check();
-    const iv = setInterval(check, 8000);
+      if (wasEstop !== isNowEstop) {
+        onStatusChangeRef.current();
+      }
+    }, 10000);
+
     return () => clearInterval(iv);
-  }, [onStatusChange, watchdogTrippedMessage]);
+  }, []);
 
   const handleStopSubmit = (e: React.FormEvent) => {
     e.preventDefault();
