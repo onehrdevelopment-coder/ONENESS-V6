@@ -3,6 +3,15 @@
 > **PEOPLE · PROCESS · AI · AS ONE**
 > *HR work, handled. You decide.*
 
+[![Open in Google AI Studio](https://img.shields.io/badge/Google%20AI%20Studio-Open%20App-0071e3?style=for-the-badge&logo=google)](https://ai.studio/apps/ad3749b9-1b5c-4a26-afc2-1484b625901a)
+
+### 🔗 Live App Link (Quick Access & Testing)
+**[https://ai.studio/apps/ad3749b9-1b5c-4a26-afc2-1484b625901a](https://ai.studio/apps/ad3749b9-1b5c-4a26-afc2-1484b625901a)**
+
+Gunakan pautan di atas untuk akses terus dan uji aplikasi Oneness dalam Google AI Studio.
+
+---
+
 **Oneness** is an "HR Operating Intelligence" layer built around **Ramco** (the core HRIS and system of record). It does **not** replace Ramco. 
 
 Instead, it orchestrates the entire operational loop:
@@ -145,6 +154,10 @@ npm run lint
 # Build production bundle
 npm run build
 ```
+
+### ☁️ Cloud & Persistence
+- **Firebase Firestore:** Provisioned in `asia-southeast1` with ABAC security rules (`firestore.rules`) and automatic background synchronization.
+- **Direct App Link:** [https://ai.studio/apps/ad3749b9-1b5c-4a26-afc2-1484b625901a](https://ai.studio/apps/ad3749b9-1b5c-4a26-afc2-1484b625901a)
 
 ---
 
