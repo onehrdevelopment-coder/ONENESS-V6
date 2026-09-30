@@ -3,10 +3,21 @@ import { X, Sparkles } from 'lucide-react';
 
 interface LandingViewProps {
   onSignIn: () => void;
+  onDemo: () => void;
+  googleConfigured: boolean;
+  signingIn: boolean;
+  signInError: string | null;
   onNavigateNav: (view: string) => void;
 }
 
-export const LandingView: React.FC<LandingViewProps> = ({ onSignIn, onNavigateNav }) => {
+export const LandingView: React.FC<LandingViewProps> = ({
+  onSignIn,
+  onDemo,
+  googleConfigured,
+  signingIn,
+  signInError,
+  onNavigateNav,
+}) => {
   const [showHowItWorks, setShowHowItWorks] = useState(false);
 
   return (
@@ -34,10 +45,10 @@ export const LandingView: React.FC<LandingViewProps> = ({ onSignIn, onNavigateNa
           </button>
         </div>
         <button
-          onClick={onSignIn}
+          onClick={onDemo}
           className="hover:text-[#0071e3] font-medium transition-colors cursor-pointer ml-auto sm:ml-0"
         >
-          Sign in
+          Demo login
         </button>
       </nav>
 
@@ -58,21 +69,37 @@ export const LandingView: React.FC<LandingViewProps> = ({ onSignIn, onNavigateNa
         </p>
 
         {/* Call to Actions */}
-        <div className="flex flex-wrap items-center justify-center gap-3.5 mb-14">
+        <div className="flex flex-wrap items-center justify-center gap-3.5 mb-4">
           <button
             onClick={onSignIn}
-            className="flex items-center gap-2.5 px-7 py-3.5 rounded-full bg-[#0071e3] text-white text-base font-semibold shadow-md hover:bg-blue-600 transition-all hover:scale-102 cursor-pointer"
+            disabled={!googleConfigured || signingIn}
+            className="flex items-center gap-2.5 px-7 py-3.5 rounded-full bg-[#0071e3] text-white text-base font-semibold shadow-md hover:bg-blue-600 transition-all hover:scale-102 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
           >
             <span className="font-bold text-lg">G</span>
-            <span>Continue with Google</span>
+            <span>{signingIn ? 'Signing in…' : 'Continue with Google'}</span>
           </button>
 
           <button
-            onClick={() => setShowHowItWorks(true)}
+            onClick={onDemo}
             className="px-7 py-3.5 rounded-full bg-white text-[#0071e3] border border-[#d2d2d7] text-base font-semibold hover:bg-gray-50 transition-all hover:scale-102 cursor-pointer"
           >
-            Watch how it works &rsaquo;
+            Try demo accounts &rsaquo;
           </button>
+        </div>
+
+        <div className="text-xs text-[#86868b] max-w-[560px] mb-10 min-h-[1rem]">
+          {signInError ? (
+            <span className="text-[#ff3b30]">{signInError}</span>
+          ) : !googleConfigured ? (
+            'Google sign-in is not configured yet. Set VITE_GOOGLE_CLIENT_ID to enable it. Demo accounts still work.'
+          ) : (
+            <>
+              Google sign-in uses your real Drive, Gmail and Calendar. Demo accounts use synthetic data only.{' '}
+              <button onClick={() => setShowHowItWorks(true)} className="text-[#0071e3] hover:underline cursor-pointer">
+                How it works
+              </button>
+            </>
+          )}
         </div>
 
         {/* 4 Feature Strip Cards */}
@@ -131,13 +158,13 @@ export const LandingView: React.FC<LandingViewProps> = ({ onSignIn, onNavigateNa
       <footer className="h-12 w-full flex items-center justify-center gap-6 text-xs text-[#6e6e73] border-t border-[#e8e8ed] bg-[#fbfbfd]/90 backdrop-blur-sm z-20">
         <div className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-[#30d158]" />
-          <span>Ramco mirror (dummy)</span>
+          <span>Google Workspace {googleConfigured ? 'ready' : 'not configured'}</span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-[#30d158]" />
           <span>Watchdog ready</span>
         </div>
-        <span className="hidden sm:inline">Dummy data only</span>
+        <span className="hidden sm:inline">Demo accounts use dummy data only</span>
       </footer>
 
       {/* How it works modal */}

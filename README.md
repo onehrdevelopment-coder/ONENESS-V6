@@ -12,7 +12,9 @@ Instead, it orchestrates the entire operational loop:
 4. **Verify**: Ensures all evidence is filed and dependencies are satisfied before closing.
 5. **Govern**: Complete audit log for every action, real-time Watchdog system integrity monitor, and an instant Emergency Stop.
 
-All employee data used in this prototype is **synthetic (dummy)**.
+Two ways in:
+- **Continue with Google** → *live workspace*: real Google account, data stored in your Google Drive, input from real files, Gmail and Calendar.
+- **Try demo accounts** → *demo login*: all 18 demo roles grouped on one page, **synthetic (dummy)** data in the browser only. Never touches Google.
 
 ---
 
@@ -145,6 +147,29 @@ npm run lint
 # Build production bundle
 npm run build
 ```
+
+### Real Google sign-in (live workspace)
+
+1. Google Cloud Console → create/select a project → enable **Google Drive API**, **Gmail API**, **Google Calendar API**.
+2. **OAuth consent screen** → User type **Internal** (limits sign-in to your Workspace org and avoids Google's restricted-scope verification for Gmail).
+3. **Credentials → Create OAuth client ID → Web application**. Add the app URL and `http://localhost:3000` under *Authorized JavaScript origins*.
+4. Set `VITE_GOOGLE_CLIENT_ID` (see `.env.example`), restart `npm run dev`.
+
+| Scope | Why |
+|---|---|
+| `drive.file` | Only files Oneness creates: `Oneness/oneness-data.json`, `Oneness/Inbox`, `Oneness/HR/<Module>/<Employee>` |
+| `gmail.readonly` | List and Sense inbox emails + attachments |
+| `gmail.compose` | Create drafts. Oneness never sends. |
+| `calendar.events` | Read upcoming events to Sense; create key-date events |
+
+How live mode works:
+- **Data**: the whole workspace (cases, tasks, audit, employees) is one JSON file `Oneness/oneness-data.json` in the signed-in user's Drive, auto-saved (debounced) after every change. Status shows in the top bar.
+- **Employees**: start empty. Import the employee master as CSV in *People* (`empId, name, email` required).
+- **Sense inputs**: drop/choose a file (PDF, Word, image, TXT, EML) → uploaded to `Oneness/Inbox`, non-text files read via Google Docs OCR; or pick an email / calendar event under *From Google Workspace*.
+- **Outputs**: automatic tasks create real Gmail drafts (never sent) and all-day Calendar events. On case creation the source file is moved to `Oneness/HR/<Module>/<Employee>`.
+- **Session**: the access token is kept in memory only and lasts ~1 hour. When it expires, click *Reconnect* in the top bar; unsaved changes are retried.
+
+Known limits (by design, for now): data is per user (each person's own Drive), no shared team workspace yet; last write wins if the same account uses two tabs; roles are not enforced server-side (there is no server).
 
 ---
 

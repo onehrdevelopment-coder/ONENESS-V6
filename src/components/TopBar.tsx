@@ -3,9 +3,17 @@ import React, { useState, useEffect } from 'react';
 interface TopBarProps {
   onLogoClick: () => void;
   onOpenMobileMenu?: () => void;
+  live?: { email: string; status: 'saved' | 'saving' | 'error' | 'reauth'; onReconnect: () => void };
 }
 
-export const TopBar: React.FC<TopBarProps> = ({ onLogoClick, onOpenMobileMenu }) => {
+const SYNC_LABEL = {
+  saved: { text: 'Saved to Drive', dot: 'bg-[#30d158]' },
+  saving: { text: 'Saving to Drive…', dot: 'bg-[#f59e0b]' },
+  error: { text: 'Drive sync failed', dot: 'bg-[#ff3b30]' },
+  reauth: { text: 'Google session expired', dot: 'bg-[#ff3b30]' },
+};
+
+export const TopBar: React.FC<TopBarProps> = ({ onLogoClick, onOpenMobileMenu, live }) => {
   const [timeStr, setTimeStr] = useState('');
   const [dateStr, setDateStr] = useState('');
 
@@ -42,6 +50,22 @@ export const TopBar: React.FC<TopBarProps> = ({ onLogoClick, onOpenMobileMenu })
         >
           Oneness
         </button>
+        {live ? (
+          <div className="flex items-center gap-2 text-[11px] text-[#86868b]">
+            <span className={`w-2 h-2 rounded-full ${SYNC_LABEL[live.status].dot}`} />
+            <span className="hidden sm:inline">{live.email} · </span>
+            <span>{SYNC_LABEL[live.status].text}</span>
+            {(live.status === 'reauth' || live.status === 'error') && (
+              <button onClick={live.onReconnect} className="font-semibold text-[#0071e3] hover:underline cursor-pointer">
+                Reconnect
+              </button>
+            )}
+          </div>
+        ) : (
+          <span className="text-[10px] font-semibold tracking-wider uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+            Demo
+          </span>
+        )}
       </div>
 
       {/* Subtle grab bar indicator */}
