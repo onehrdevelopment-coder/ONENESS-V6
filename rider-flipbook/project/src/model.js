@@ -7,14 +7,16 @@ const { C, v, add, sub, mul, norm, cross, lerp3, rad, tube, face, sphere, patch,
 // ---------------- default pose (riding, both hands on bars, feet on pegs) ----------------
 function defaultPose() {
   return {
-    pelvis: v(38, 88, 0),
-    chest: v(50, 131, 0),
-    head: v(57, 155, 0), headFwd: norm(v(1, -0.08, 0)), headUp: norm(v(0.08, 1, 0)),
-    // arms: shoulder -> elbow -> wrist -> hand tip ; L = +z (left)
-    armR: [v(51, 132, 17), v(72, 114, 25), v(94, 105, 31), v(99, 104.5, 31.5)],
-    armL: [v(51, 132, -17), v(72, 114, -25), v(94, 105, -31), v(99, 104.5, -31.5)],
-    legR: [v(40, 86, 10), v(72, 80, 17), v(58, 37, 17), v(69, 28, 18)],
-    legL: [v(40, 86, -10), v(72, 80, -17), v(58, 37, -17), v(69, 28, -18)],
+    pelvis: v(37, 88, 0),
+    chest: v(49, 136, 0),
+    head: v(56, 161, 0), headFwd: norm(v(1, -0.08, 0)), headUp: norm(v(0.08, 1, 0)),
+    // arms: shoulder -> elbow -> wrist -> hand tip ; R = +z (rider's right)
+    armR: [v(50, 137, 15), v(73, 118, 24), v(94, 105.5, 31), v(99, 104.5, 31.5)],
+    armL: [v(50, 137, -15), v(73, 118, -24), v(94, 105.5, -31), v(99, 104.5, -31.5)],
+    legR: [v(39, 86, 9.5), v(73, 81, 16), v(58, 37, 16.5), v(69, 28, 17.5)],
+    legL: [v(39, 86, -9.5), v(73, 81, -16), v(58, 37, -16.5), v(69, 28, -17.5)],
+    gripR: { c: v(99, 104.5, 31), twist: 0 }, gripL: { c: v(99, 104.5, -31), twist: 0 },
+    boxTilt: 0, armBias: {},
     phone: null, // {pos, fwd, up}
     blink: 0, mouth: 0,
     wheelRot: 0, gear: 0, throttle: 0, lean: 0,
@@ -36,13 +38,15 @@ function buildBike(S, st = {}) {
     for (let i = 0; i < 40; i += 4) tube(g, tirePts.slice(i, i + 5).concat(i + 4 >= 40 ? [tirePts[0]] : []), 4.2, C.tire, null);
     const rimPts = circlePts(c, [0, 0, 1], 20.5, 32, rot);
     tube(g, rimPts.concat([rimPts[0], rimPts[1]]), 1.5, C.white, null, { detail: false });
+    const blur = st.spinBlur || 0;
+    if (blur > 0) for (let k = 0; k < 3; k++) { const a0 = rot * 0.13 + k * 2.1; const pts = []; for (let i = 0; i <= 8; i++) { const a = a0 + i * 0.16; pts.push(add(c, v(Math.cos(a) * 14, Math.sin(a) * 14, 0.5))); } tube(g, pts, 0.7, '#9a9da2', null, { noOutline: true, detail: true }); }
     for (let k = 0; k < 5; k++) {
       const a = rot + (k / 5) * Math.PI * 2;
       const a2 = a + 0.42;
       const hub = add(c, v(Math.cos(a) * 4, Math.sin(a) * 4, 0));
       const mid = add(c, v(Math.cos(a + 0.2) * 12, Math.sin(a + 0.2) * 12, 0));
       const rim = add(c, v(Math.cos(a2) * 20, Math.sin(a2) * 20, 0));
-      tube(g, [hub, mid, rim], 1.6, C.white, null);
+      tube(g, [hub, mid, rim], 1.6, blur > 0 ? '#dedede' : C.white, null, blur > 0.5 ? { op: 0.55 } : {});
     }
     tube(g, [add(c, v(0, 0, -5)), add(c, v(0, 0, 5))], 4.6, C.silver, C.silverS);
     if (front) {
@@ -86,7 +90,7 @@ function buildBike(S, st = {}) {
 
   // engine block (centre, low) ----------------------------------------------
   const eng = S.group('engine');
-  prism(eng, [[50, 20], [80, 20], [86, 30], [84, 40], [70, 44], [52, 42], [46, 32]], 0, 11, C.dark, C.darkS);
+  prism(eng, [[50, 20], [80, 20], [86, 30], [84, 40], [70, 44], [52, 42], [46, 32]], 0, 11, '#7c8086', '#5f6368');
   prism(eng, [[80, 30], [92, 34], [92, 42], [84, 42]], 0, 6, C.silverS, C.dark); // cylinder head
   const engDet = S.group('engineL', { outline: 1.4 });
   face(engDet, circlePts(v(62, 31, 11.4), [0, 0, 1], 6, 18), C.silverS, null, { line: true }); // clutch cover L
@@ -147,6 +151,11 @@ function buildBike(S, st = {}) {
   });
   // throttle grip marker (shows twist)
   const tg = S.group('throttleMark', { outline: 1, bias: -4 });
+  [-0.4, 1.7, 3.8].forEach((o) => { const ta = o + thr; tube(tg, [v(99 + Math.cos(ta) * 1.95, 104.5 + Math.sin(ta) * 1.95, 35.2), v(99 + Math.cos(ta) * 1.95, 104.5 + Math.sin(ta) * 1.95, 36.3)], 0.4, '#8a8d91', null, { noOutline: true }); });
+  // bar-end cap with a notch: makes grip rotation readable
+  const cap = S.group('barEnd', { outline: 1.4, bias: -5 });
+  face(cap, circlePts(v(99, 104.5, 36.4), [0, 0, 1], 2.1, 16), C.silver, null, { line: true, cull: true, n: [0, 0, 1] });
+  tube(cap, [v(99, 104.5, 36.6), v(99 + Math.cos(1.2 + thr) * 1.9, 104.5 + Math.sin(1.2 + thr) * 1.9, 36.6)], 0.38, C.ink, null, { noOutline: true, detail: true });
   const ta = -0.4 + thr;
   tube(tg, [v(99 + Math.cos(ta) * 1.95, 104.5 + Math.sin(ta) * 1.95, 27.5), v(99 + Math.cos(ta) * 1.95, 104.5 + Math.sin(ta) * 1.95, 35)], 0.35, '#8a8d91', null, { noOutline: true });
 
@@ -158,8 +167,8 @@ function buildBike(S, st = {}) {
   const ga = rad(-6 + gear * 14); // + = toe down
   const toe = add(piv, v(Math.cos(ga) * 11, -Math.sin(ga) * 11, -2.5));
   const heel = add(piv, v(-Math.cos(ga) * 9, Math.sin(ga) * 9, -2.5));
-  tube(gr, [heel, piv, toe], 0.9, C.silver, null);
-  tube(gr, [add(toe, v(0, 0, 0.5)), add(toe, v(0, 0, -3))], 1.3, C.seat, null);
+  tube(gr, [heel, piv, toe], 1.5, '#e2e4e6', C.silverS);
+  tube(gr, [add(toe, v(0, 0, 0.5)), add(toe, v(0, 0, -3.5))], 1.7, C.seat, null);
   tube(gr, [add(heel, v(0, 0, 0.5)), add(heel, v(0, 0, -3))], 1.3, C.seat, null);
   sphere(gr, piv, 1.3, C.dark, null);
   tube(pg, [v(56, 28, 13), v(70, 26, 18)], 0.9, C.silver, null);
@@ -176,9 +185,9 @@ function buildRider(S, P) {
   ['L', 'R'].forEach((s) => {
     const L = P['leg' + s];
     const g = S.group('leg' + s);
-    tube(g, [L[0], L[1]], 7.6, C.pants, C.pantsS);
-    tube(g, [L[1], L[2]], 6.2, C.pants, C.pantsS);
-    tube(g, [L[1], lerp3(L[1], L[2], 0.5)], 6.9, C.pants, C.pantsS);
+    tube(g, [L[0], L[1]], 7.0, C.pants, C.pantsS);
+    tube(g, [L[1], L[2]], 5.7, C.pants, C.pantsS);
+    tube(g, [L[1], lerp3(L[1], L[2], 0.5)], 6.3, C.pants, C.pantsS);
     const sg = S.group('shoe' + s, { bias: -1 });
     tube(sg, [add(L[2], v(-3, -2, 0)), L[3]], 4.4, C.shoe, C.shoeS);
     tube(sg, [add(L[2], v(-4, -5.4, 0)), add(L[3], v(1, -3.4, 0))], 1.2, '#e9e9e6', null, { detail: true, noOutline: true });
@@ -186,16 +195,19 @@ function buildRider(S, P) {
   // torso (hoodie)
   const tg = S.group('torso');
   const mid = lerp3(pel, ch, 0.5);
-  tube(tg, [add(pel, v(0, 2, 0)), mid], 14.5, C.hood, C.hoodS);
-  tube(tg, [mid, ch], 15.5, C.hood, C.hoodS);
-  tube(tg, [add(ch, v(0, 1, 15)), add(ch, v(0, 1, -15))], 9.5, C.hood, C.hoodS);
+  tube(tg, [add(pel, v(0, 2, 0)), mid], 13, C.hood, C.hoodS);
+  tube(tg, [mid, ch], 14, C.hood, C.hoodS);
+  tube(tg, [add(ch, v(0, 1, 13.5)), add(ch, v(0, 1, -13.5))], 8.6, C.hood, C.hoodS);
   tube(tg, [add(pel, v(0, 2, 11)), add(pel, v(0, 2, -11))], 9, C.pants, C.pantsS);
   // hoodie pocket line / zipper hint on the front
   const front = mul(back, -1);
   const zp = S.group('torso_det', { outline: 1.2, bias: -0.5 });
-  tube(zp, [add(lerp3(pel, ch, 0.15), mul(front, 15)), add(lerp3(pel, ch, 0.85), mul(front, 16.2))], 0.35, C.hoodS, null, { noOutline: true });
+  tube(zp, [add(lerp3(pel, ch, 0.45), mul(front, 14)), add(lerp3(pel, ch, 0.9), mul(front, 14.6))], 0.35, C.hoodS, null, { noOutline: true });
+  // kangaroo pocket opening
+  const pk = add(lerp3(pel, ch, 0.3), mul(front, 13.2));
+  tube(zp, [add(pk, v(0, 4, 9)), add(pk, v(1, -1, 7)), add(pk, v(1.5, -2, 0)), add(pk, v(1, -1, -7)), add(pk, v(0, 4, -9))], 0.55, C.ink, null, { noOutline: true, visN: front });
   // hood bunched at neck back
-  tube(tg, [add(ch, add(mul(back, 9), v(0, 9, 7))), add(ch, add(mul(back, 11), v(0, 10, 0))), add(ch, add(mul(back, 9), v(0, 9, -7)))], 6.5, C.hoodS, C.hoodS);
+  tube(tg, [add(ch, add(mul(back, 8), v(0, 9, 7))), add(ch, add(mul(back, 10), v(0, 10, 0))), add(ch, add(mul(back, 8), v(0, 9, -7)))], 6, C.hoodS, C.hoodS);
   // neck
   const ng = S.group('neck', { bias: 2 });
   tube(ng, [add(ch, v(2, 8, 0)), add(P.head, v(-2, -10, 0))], 5, C.skin, C.skinS);
@@ -203,36 +215,55 @@ function buildRider(S, P) {
   // arms
   ['L', 'R'].forEach((s) => {
     const A = P['arm' + s];
-    const g = S.group('arm' + s, { bias: s === 'L' ? -1 : 0 });
-    tube(g, [A[0], A[1]], 5.6, C.hood, C.hoodS);
-    tube(g, [A[1], A[2]], 4.8, C.hood, C.hoodS);
-    tube(g, [lerp3(A[1], A[2], 0.86), A[2]], 5.2, C.hoodS, null); // cuff
-    tube(g, [A[2], A[3]], 3.3, C.skin, C.skinS);
+    const g = S.group('arm' + s, { bias: P.armBias[s] ?? (s === 'L' ? -1 : 0) });
+    tube(g, [A[0], A[1]], 5.0, C.hood, C.hoodS);
+    tube(g, [A[1], A[2]], 4.4, C.hood, C.hoodS);
+    tube(g, [lerp3(A[1], A[2], 0.86), A[2]], 4.8, C.hoodS, null); // cuff
+    const gp = P['grip' + s];
+    if (gp && P['onGrip' + s] !== false) {
+      // hand wrapped around grip: palm + 4 fingers + thumb, all rotate with twist (radians about grip axis)
+      const zs = s === 'R' ? 1 : -1, tw = gp.twist || 0;
+      const at = (a, r, dz) => add(gp.c, v(Math.cos(a + tw) * r, Math.sin(a + tw) * r, dz * zs));
+      const hg = S.group('hand' + s, { outline: 1.6, bias: (P.armBias[s] ?? (s === 'L' ? -1 : 0)) - 0.5 });
+      tube(hg, [A[2], at(2.2, 3.2, 0), at(1.6, 3.4, 1.5)], 3.0, C.skin, C.skinS);
+      [-1.6, 0, 1.6, 3.1].forEach((dz, k) => {
+        const pts = [];
+        for (let i = 0; i <= 6; i++) pts.push(at(1.7 - (i / 6) * (3.2 - k * 0.15), 3.05, dz + 0.4));
+        tube(hg, pts, 1.05, C.skin, null);
+      });
+      tube(hg, [at(2.6, 3.0, -1.8), at(3.6, 3.1, -1.2), at(4.3, 2.9, -0.2)], 1.1, C.skin, null);
+    } else {
+      tube(g, [A[2], A[3]], 3.1, C.skin, C.skinS);
+    }
   });
 
   // delivery box backpack
   const bg = S.group('box', { bias: -6 });
   const up = ax, out = back, zz = v(0, 0, 1);
-  const bc = add(lerp3(pel, ch, 0.5), mul(out, 27));
-  box(bg, bc, out, up, zz, 12.5, 22, 21, C.red, C.redS);
-  const stripC = add(bc, mul(up, 13));
-  box(bg, stripC, out, up, zz, 12.8, 2.3, 21.3, C.strip, C.stripS);
+  const bpiv = add(lerp3(pel, ch, 0.3), mul(out, 13));
+  const bt = P.boxTilt || 0;
+  const rz = (q) => R.rotZ(q, bt);
+  const bc = add(bpiv, rz(sub(add(lerp3(pel, ch, 0.52), mul(out, 26)), bpiv)));
+  const upB = rz(up), outB = rz(out);
+  box(bg, bc, outB, upB, zz, 12.5, 22, 21, C.red, C.redS);
+  const stripC = add(bc, mul(upB, 13));
+  box(bg, stripC, outB, upB, zz, 12.8, 2.3, 21.3, C.strip, C.stripS);
   // lid seam
   const bgd = S.group('box_det', { outline: 1.2, bias: -7 });
   // logo on both side faces (fictional brand)
   [1, -1].forEach((sd) => {
-    const o = add(add(add(bc, mul(zz, 21.4 * sd)), mul(up, 1)), mul(out, 0));
-    const ux = mul(out, -1 * sd * 15);
-    text3(bgd, o, mul(ux, 1 / 15 * 15), up, 'LAJU', { size: 7.5, col: '#fff', italic: true, weight: 900 });
-    text3(bgd, add(o, mul(up, -6)), ux, up, 'EXPRESS', { size: 3.6, col: '#fff', weight: 700 });
+    const o = add(add(bc, mul(zz, 21.4 * sd)), mul(upB, 1));
+    const ux = mul(outB, -1 * sd * 15);
+    text3(bgd, o, ux, upB, 'LAJU', { size: 7.5, col: '#fff', italic: true, weight: 900 });
+    text3(bgd, add(o, mul(upB, -6)), ux, upB, 'EXPRESS', { size: 3.6, col: '#fff', weight: 700 });
   });
   // back face logo (seen from rear)
-  text3(bgd, add(add(bc, mul(out, 12.9)), mul(up, 1)), v(0, 0, 16), up, 'LAJU', { size: 10, col: '#fff', italic: true });
-  text3(bgd, add(add(bc, mul(out, 12.9)), mul(up, -5)), v(0, 0, 16), up, 'EXPRESS', { size: 4.6, col: '#fff', weight: 700 });
+  text3(bgd, add(add(bc, mul(outB, 12.9)), mul(upB, 1)), v(0, 0, 16), upB, 'LAJU', { size: 10, col: '#fff', italic: true });
+  text3(bgd, add(add(bc, mul(outB, 12.9)), mul(upB, -5)), v(0, 0, 16), upB, 'EXPRESS', { size: 4.6, col: '#fff', weight: 700 });
   // straps
   [1, -1].forEach((sd) => {
     const g = S.group('strap' + (sd > 0 ? 'L' : 'R'), { outline: 1.4, bias: sd > 0 ? -2 : 2 });
-    const z = 12 * sd;
+    const z = 11 * sd;
     tube(g, [add(add(ch, mul(back, 14)), v(0, 9, z)), add(ch, v(4, 11, z)), add(add(ch, mul(front, 15)), v(0, -2, z * 1.05)), add(add(lerp3(pel, ch, 0.55), mul(front, 6)), v(0, 0, z * 1.35))], 1.5, C.seat, null);
   });
 
@@ -241,8 +272,10 @@ function buildRider(S, P) {
 
   // phone
   if (P.phone) {
-    const pg = S.group('phone', { outline: 1.4, bias: -20 });
-    box(pg, P.phone.pos, P.phone.fwd, P.phone.up, norm(cross(P.phone.fwd, P.phone.up)), 1, 7, 3.4, C.seat, C.ink);
+    const pg = S.group('phone', { outline: 1.4, bias: P.phone.bias ?? -20 });
+    const ps = P.phone.s ?? 1;
+    box(pg, P.phone.pos, P.phone.fwd, P.phone.up, norm(cross(P.phone.fwd, P.phone.up)), 0.9, 7 * ps, 3.4, C.seat, C.ink);
+    if (ps > 0.6) text3(pg, add(P.phone.pos, mul(P.phone.fwd, 0.95)), norm(cross(P.phone.up, P.phone.fwd)), P.phone.up, '▬', { size: 1.4, col: '#5b6b7a', cull: true });
   }
 }
 

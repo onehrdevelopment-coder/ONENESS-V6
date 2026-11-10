@@ -126,7 +126,7 @@ function render(scene, cam, opt = {}) {
     let dsum = 0, dn = 0;
     const items = [];
     for (const it of g.items) {
-      const o = g.outline;
+      const o = g.outline * (opt.os || 1);
       if (it.t === 'shadow') {
         const pts = [];
         for (let i = 0; i < 36; i++) { const t = (i / 36) * Math.PI * 2; pts.push(cam.proj(add(it.c, [Math.cos(t) * it.rx, 0, Math.sin(t) * it.rz]))); }
@@ -136,12 +136,13 @@ function render(scene, cam, opt = {}) {
       if (it.t === 'tube') {
         if (it.visN && !cam.facing(it.pts[0], it.visN)) continue;
         const P = it.pts.map((p) => cam.proj(p));
+        if (P.some((q) => q.z < 30)) continue;
         const z = P.reduce((s, p) => s + p.z, 0) / P.length;
         const w = 2 * it.r * P[0].k;
         const d = pathOf(P, false);
         const segs = [];
         if (!it.noOutline) segs.push({ layer: 'u', s: `<path d="${d}" fill="none" stroke="${ink}" stroke-width="${f1(w + 2 * o)}" stroke-linecap="round" stroke-linejoin="round"/>` });
-        let body = `<path d="${d}" fill="none" stroke="${it.shade || it.col}" stroke-width="${f1(w)}" stroke-linecap="round" stroke-linejoin="round"/>`;
+        let body = `<path d="${d}" ${it.op ? `opacity="${it.op}"` : ''} fill="none" stroke="${it.shade || it.col}" stroke-width="${f1(w)}" stroke-linecap="round" stroke-linejoin="round"/>`;
         if (it.shade && w > 3) {
           const off = w * 0.17;
           body += `<path d="${d}" transform="translate(${f1(lightScr[0] * off)} ${f1(lightScr[1] * off)})" fill="none" stroke="${it.col}" stroke-width="${f1(w * 0.62)}" stroke-linecap="round" stroke-linejoin="round"/>`;
@@ -153,6 +154,7 @@ function render(scene, cam, opt = {}) {
         const cen = mul(it.pts.reduce((s, p) => add(s, p), [0, 0, 0]), 1 / it.pts.length);
         if (it.cull && !cam.facing(cen, n)) continue;
         const P = it.pts.map((p) => cam.proj(p));
+        if (P.some((q) => q.z < 30)) continue;
         const z = P.reduce((s, p) => s + p.z, 0) / P.length;
         const lit = dot(n, LIGHT);
         const col = it.shade && lit < (it.th ?? 0.08) ? it.shade : it.col;
@@ -232,4 +234,20 @@ function render(scene, cam, opt = {}) {
   return { shadows: groups.map((g) => g.shadows).join(''), body: groups.map((g) => g.svg).join('') };
 }
 
-module.exports = { C, v, add, sub, mul, dot, cross, len, norm, lerp3, rad, Scene, tube, face, sphere, patch, text3, shadow, prism, box, circlePts, makeCamera, render, faceNormal };
+// apply point transform fp and vector transform fv to every item in groups passing filter
+function transformScene(S, fp, fv, filter = () => true) {
+  for (const g of S.groups) {
+    if (!filter(g)) continue;
+    for (const it of g.items) {
+      if (it.pts) it.pts = it.pts.map(fp);
+      if (it.c) it.c = fp(it.c);
+      if (it.o) { it.o = fp(it.o); it.ux = fv(it.ux); it.uy = fv(it.uy); }
+      if (it.n) it.n = fv(it.n);
+      if (it.visN) it.visN = fv(it.visN);
+      if (it.sp) it.sp = { ...it.sp, c: fp(it.sp.c), fwd: fv(it.sp.fwd), up: fv(it.sp.up) };
+    }
+  }
+}
+const rotZ = (p, a, piv = [0, 0, 0]) => { const c = Math.cos(a), s = Math.sin(a), x = p[0] - piv[0], y = p[1] - piv[1]; return [piv[0] + x * c - y * s, piv[1] + x * s + y * c, p[2]]; };
+
+module.exports = { transformScene, rotZ, C, v, add, sub, mul, dot, cross, len, norm, lerp3, rad, Scene, tube, face, sphere, patch, text3, shadow, prism, box, circlePts, makeCamera, render, faceNormal };
